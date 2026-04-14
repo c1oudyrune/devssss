@@ -1,0 +1,52 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - feature/*
+  pull_request:
+    branches:
+      - dev
+
+jobs:
+  code_quality_check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run code quality check
+        run: npm run lint # или другой скрипт проверки качества
+
+      - name: Generate report
+        run: npm run report # команда для генерации отчета
+
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: code-quality-report
+          path: ./report
+
+  notify_telegram:
+    needs: code_quality_check
+    runs-on: ubuntu-latest
+    if: success() # или можно настроить условие
+    steps:
+      - name: Send Telegram notification
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          REPORT_URL="https://your-artifact-storage.com/path-to-report"
+          MESSAGE="🚀 Новый pull request или ветка готова! Проверьте отчет: $REPORT_URL"
+          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
+            -d chat_id=$TELEGRAM_CHAT_ID \
+            -d text="$MESSAGE"
