@@ -1,53 +1,78 @@
-name: CI Pipeline
+name: CI/CD Pipeline for Land-devops
 
 on:
-  push:
-    branches:
-      - feature/*
   pull_request:
-    branches:
-      - dev
+    branches: [ main ] # Запускать при создании PR в ветку main
+  push:
+    branches: [ main ] # Запускать при пуше в ветку main (для сборки артефакта)
 
 jobs:
-  code_quality_check:
+  build_and_test:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: '14'
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.x' # Укажите вашу версию Python
 
-      - name: Install dependencies
-        run: npm install
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt # Замените на ваш файл зависимостей
 
-      - name: Run code quality check
-        run: npm run lint # или другой скрипт проверки качества
+    - name: Run quality checks
+      run: |
+        # Здесь можно добавить команды для запуска линтеров, статического анализа, тестов
+        # Пример:
+        # pylint your_bot_module
+        # pytest
 
-      - name: Generate report
-        run: npm run report # команда для генерации отчета
+    - name: Build Docker image
+      run: docker build . :${{ github.sha }}
 
-      - name: Upload report artifact
-        uses: actions/upload-artifact@v2
-        with:
-          name: code-quality-report
-          path: ./report
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Push Docker image
+      run: |
+        docker push makarmarkov/land_devops:latest
+        docker push makarmarkov/land_devops:${{ github.sha }}
+
+  deploy:
+    needs: build_and_test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Deploy to production
+      run: |
+        # Здесь можно добавить команды для развертывания Docker-образа
+        # Например, обновление сервиса на сервере, запуск нового контейнера и т.д.
+        echo "Deploying version ${{ github.sha }}"
 
   notify_telegram:
-    needs: code_quality_check
+    needs: [build_and_test, deploy] # Ждать завершения сборки и развертывания
     runs-on: ubuntu-latest
-    if: success() # или можно настроить условие
-    steps:
-      - name: Send Telegram notification
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.8689239947 }}
-          TELEGRAM_CHAT_ID: ${{ secrets.3605498625 }}
-        run: |
-          REPORT_URL="https://github.com/c1oudyrune/devssss"
-          MESSAGE="🚀 Новый pull request или ветка готова! Проверьте отчет: $REPORT_URL"
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-            -d chat_id=$TELEGRAM_CHAT_ID \
-            -d text="$MESSAGE"
 
+    steps:
+    - name: Send Telegram notification
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.TELEGRAM_CHAT_ID }}
+        token: ${{ secrets.TELEGRAM_TOKEN }}
+        message: |
+          *CI/CD Notification*
+          Project: Land-devops
+          Status: ${{ job.status }}
+          Commit SHA: ${{ github.sha }}
+          Actor: ${{ github.actor }}
+          Repository: ${{ github.repository }}
+          Docker Image: makarmarkov/land_devops:${{ github.sha }}
+
+          Full URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
