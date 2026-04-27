@@ -1,81 +1,31 @@
-name: Notify Tg on Merge
-
 on:
-  pull_request:
-    branches: [ dev ] 
-    types: [ closed ] 
-
+  push:
+    branches: 'master'
 jobs:
-  build_and_notify:
-    runs-on: ubuntu-latest 
-
+  check-and-publish:
+    name: "Test job"
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: "Checkout source code"
+        uses: actions/checkout@v2
+      - name: "Setup Node.js"
+        uses: actions/setup-node@v1
         with:
-          fetch-depth: 0 
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+          node-version: 12
+          registry-url: https://registry.npmjs.org/
+      - name: "Edit config"
+        run: git config --global user.email "c1oudyrune@mail.ru" && git config --global user.name "boumrz"
+      - name: "Version patch"
+        run: npm version 0.1.&GITHUB_RUN_ID
+      - name: "Install dependencies"
+        run: npm install
+      - name: "Npm publish"
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      - name: "telegram Notification"
+        uses: "appleboy/telegram-action@master"
         with:
-          python-version: '3.x'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests 
-
-    
-      - name: Run Code Quality Check 
-        id: code_quality 
-        run: |
-          echo "Running code quality checks..."
-          # Пример: запуск SonarScanner
-          # sonar-scanner \
-          # -Dsonar.projectKey=your_project_key \
-          # -Dsonar.organization=your_org \
-          # -Dsonar.host.url=https://sonarcloud.io \
-          # -Dsonar.login=${{ secrets.SONAR_TOKEN }}
-
-          # Имитация получения отчета: создаем простой файл
-          echo "Quality check finished. Generating report..."
-          echo "Report Summary for branch ${{ github.event.pull_request.head.ref }}" > quality_report.txt
-          echo "Merged commit: ${{ github.sha }}" >> quality_report.txt
-          echo "Created at: $(date +'%Y-%m-%d %H:%M:%S')" >> quality_report.txt
-          echo "----------" >> quality_report.txt
-          echo "Link to PR: ${{ github.event.pull_request.html_url }}" >> quality_report.txt
-          echo "Link to repository: ${{ github.server_url }}/${{ github.repository }}" >> quality_report.txt
-          echo "----------" >> quality_report.txt
-          echo "Quality check passed (simulated)." >> quality_report.txt
-
-  
-
-     
-      - name: Upload report artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: code-quality-report
-          path: quality_report.txt 
-
-      
-      - name: Send Telegram Notification
-        uses: appleboy/telegram-action@master 
-        with:
-          token: ${{ secrets.TELEGRAM_BOT_TOKEN }} 
-          chat_id: ${{ secrets.TELEGRAM_CHAT_ID }} 
-          message: |
-             **Pull Request Merged**
-
-            Branch: `${{ github.event.pull_request.head.ref }}`
-            Merged Commit: `${{ github.sha }}` (Link: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
-            Merged by: `${{ github.event.pull_request.merged_by.login }}`
-            Merge Time: `${{ github.event.pull_request.merged_at }}`
-
-             **Links:**
-            * PR: ${{ github.event.pull_request.html_url }}
-            * Repository: ${{ github.server_url }}/${{ github.repository }}
-
-             **Quality Report:** (Attached as artifact)
-            (Manual check of latest report will be available in artifacts of this workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-
-            
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          args: New 0.1.${{ github.run_id }}Version publish
