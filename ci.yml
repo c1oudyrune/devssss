@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests # Библиотека для отправки HTTP-запросов
+          pip install requests 
 
     
       - name: Run Code Quality Check 
@@ -48,8 +48,7 @@ jobs:
           echo "----------" >> quality_report.txt
           echo "Quality check passed (simulated)." >> quality_report.txt
 
-          # Если бы у нас был реальный отчет, например, в JSON, мы могли бы его распарсить.
-          # Тут мы просто сохраняем текстовый файл как артефакт.
+  
 
      
       - name: Upload report artifact
@@ -65,20 +64,18 @@ jobs:
           token: ${{ secrets.TELEGRAM_BOT_TOKEN }} 
           chat_id: ${{ secrets.TELEGRAM_CHAT_ID }} 
           message: |
-            ✅ **Pull Request Merged**
+             **Pull Request Merged**
 
             Branch: `${{ github.event.pull_request.head.ref }}`
             Merged Commit: `${{ github.sha }}` (Link: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
             Merged by: `${{ github.event.pull_request.merged_by.login }}`
             Merge Time: `${{ github.event.pull_request.merged_at }}`
 
-            🔗 **Links:**
+             **Links:**
             * PR: ${{ github.event.pull_request.html_url }}
             * Repository: ${{ github.server_url }}/${{ github.repository }}
 
-            📝 **Quality Report:** (Attached as artifact)
+             **Quality Report:** (Attached as artifact)
             (Manual check of latest report will be available in artifacts of this workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
-            🎉 Cheers!
-
-            **Note:** This is a simulated quality check. Replace the placeholder step with your actual code quality analysis.
+            
