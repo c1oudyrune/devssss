@@ -1,78 +1,84 @@
-name: CI/CD Pipeline for Land-devops
+name: Notify Tg on Merge
 
 on:
   pull_request:
-    branches: [ main ] # Запускать при создании PR в ветку main
-  push:
-    branches: [ main ] # Запускать при пуше в ветку main (для сборки артефакта)
+    branches: [ dev ] 
+    types: [ closed ] 
 
 jobs:
-  build_and_test:
-    runs-on: ubuntu-latest
+  build_and_notify:
+    runs-on: ubuntu-latest 
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 
 
-    - name: Set up Python
-      uses: actions/setup-python@v3
-      with:
-        python-version: '3.x' # Укажите вашу версию Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt # Замените на ваш файл зависимостей
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests # Библиотека для отправки HTTP-запросов
 
-    - name: Run quality checks
-      run: |
-        # Здесь можно добавить команды для запуска линтеров, статического анализа, тестов
-        # Пример:
-        # pylint your_bot_module
-        # pytest
+    
+      - name: Run Code Quality Check 
+        id: code_quality 
+        run: |
+          echo "Running code quality checks..."
+          # Пример: запуск SonarScanner
+          # sonar-scanner \
+          # -Dsonar.projectKey=your_project_key \
+          # -Dsonar.organization=your_org \
+          # -Dsonar.host.url=https://sonarcloud.io \
+          # -Dsonar.login=${{ secrets.SONAR_TOKEN }}
 
-    - name: Build Docker image
-      run: docker build . :${{ github.sha }}
+          # Имитация получения отчета: создаем простой файл
+          echo "Quality check finished. Generating report..."
+          echo "Report Summary for branch ${{ github.event.pull_request.head.ref }}" > quality_report.txt
+          echo "Merged commit: ${{ github.sha }}" >> quality_report.txt
+          echo "Created at: $(date +'%Y-%m-%d %H:%M:%S')" >> quality_report.txt
+          echo "----------" >> quality_report.txt
+          echo "Link to PR: ${{ github.event.pull_request.html_url }}" >> quality_report.txt
+          echo "Link to repository: ${{ github.server_url }}/${{ github.repository }}" >> quality_report.txt
+          echo "----------" >> quality_report.txt
+          echo "Quality check passed (simulated)." >> quality_report.txt
 
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+          # Если бы у нас был реальный отчет, например, в JSON, мы могли бы его распарсить.
+          # Тут мы просто сохраняем текстовый файл как артефакт.
 
-    - name: Push Docker image
-      run: |
-        docker push makarmarkov/land_devops:latest
-        docker push makarmarkov/land_devops:${{ github.sha }}
+     
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-quality-report
+          path: quality_report.txt 
 
-  deploy:
-    needs: build_and_test
-    runs-on: ubuntu-latest
+      
+      - name: Send Telegram Notification
+        uses: appleboy/telegram-action@master 
+        with:
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }} 
+          chat_id: ${{ secrets.TELEGRAM_CHAT_ID }} 
+          message: |
+            ✅ **Pull Request Merged**
 
-    steps:
-    - name: Deploy to production
-      run: |
-        # Здесь можно добавить команды для развертывания Docker-образа
-        # Например, обновление сервиса на сервере, запуск нового контейнера и т.д.
-        echo "Deploying version ${{ github.sha }}"
+            Branch: `${{ github.event.pull_request.head.ref }}`
+            Merged Commit: `${{ github.sha }}` (Link: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            Merged by: `${{ github.event.pull_request.merged_by.login }}`
+            Merge Time: `${{ github.event.pull_request.merged_at }}`
 
-  notify_telegram:
-    needs: [build_and_test, deploy] # Ждать завершения сборки и развертывания
-    runs-on: ubuntu-latest
+            🔗 **Links:**
+            * PR: ${{ github.event.pull_request.html_url }}
+            * Repository: ${{ github.server_url }}/${{ github.repository }}
 
-    steps:
-    - name: Send Telegram notification
-      uses: appleboy/telegram-action@master
-      with:
-        to: ${{ secrets.TELEGRAM_CHAT_ID }}
-        token: ${{ secrets.TELEGRAM_TOKEN }}
-        message: |
-          *CI/CD Notification*
-          Project: Land-devops
-          Status: ${{ job.status }}
-          Commit SHA: ${{ github.sha }}
-          Actor: ${{ github.actor }}
-          Repository: ${{ github.repository }}
-          Docker Image: makarmarkov/land_devops:${{ github.sha }}
+            📝 **Quality Report:** (Attached as artifact)
+            (Manual check of latest report will be available in artifacts of this workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
-          Full URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            🎉 Cheers!
+
+            **Note:** This is a simulated quality check. Replace the placeholder step with your actual code quality analysis.
